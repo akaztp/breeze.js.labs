@@ -104,7 +104,7 @@
             // node.$entityType set when node is from a change response (see _processSavedEntity)
             var entityType =  mappingContext.entityType || node.$entityType ||
                 dataServiceAdapter._getEntityTypeFromMappingContext(mappingContext);
-            return (entityType) ? { entityType: entityType } : {}
+            return (entityType) ? { entityType: entityType, extraMetadata: { etag: node['__version'] } } : {}
         }
     }
 
@@ -162,6 +162,15 @@
         }
 
         request.headers = adapter._getZumoHeaders();
+        if (entity.entityAspect.extraMetadata && entity.entityAspect.extraMetadata.etag)
+        {
+            if (state.isModified() || state.isDeleted())
+                request.headers["If-Match"] = '"' + entity.entityAspect.extraMetadata.etag + '"';
+            else if (state.isAdded())
+                request.headers["ETag"] = '"' + entity.entityAspect.extraMetadata.etag + '"';
+        }
+        
+        request.requestUri = request.requestUri + '?__systemproperties=__version';
 
         return request;
     }
@@ -206,11 +215,16 @@
         var url = mappingContext.getUrl();
         var headers = adapter._getZumoHeaders();
 
+        var params = mappingContext.query.parameters;
+        if (!params)
+            params = {};
+        params['__systemproperties'] = '__version';
+
         adapter._ajaxImpl.ajax({
             type: "GET",
             url: url,
             headers: headers,
-            params: mappingContext.query.parameters,
+            params: params,
             success: querySuccess,
             error: function (response) {
                 deferred.reject(adapter._createErrorFromResponse(response, url, mappingContext));
